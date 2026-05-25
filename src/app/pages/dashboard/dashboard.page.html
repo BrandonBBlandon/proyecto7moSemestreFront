@@ -1,0 +1,67 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Monitoreo IoT</ion-title>
+    <ion-buttons slot="end">
+      <ion-button routerLink="/app/settings" aria-label="Ajustes">
+        <ion-icon slot="icon-only" name="settings-outline"></ion-icon>
+      </ion-button>
+      <ion-button (click)="load()" aria-label="Actualizar">
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="load(false, $event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <main class="page-shell">
+    @if (loading) {
+      <app-loading-state message="Consultando sensor..."></app-loading-state>
+    } @else if (errorMessage) {
+      <app-error-state [message]="errorMessage" (retry)="load()"></app-error-state>
+    } @else if (current) {
+      <app-status-card [current]="current"></app-status-card>
+
+      @if (hasUnusualEvent()) {
+        <section class="event-card panel">
+          <ion-icon name="flame-outline"></ion-icon>
+          <div>
+            <strong>Posible evento inusual</strong>
+            <span>Los últimos registros muestran advertencias o valores en alarma.</span>
+          </div>
+        </section>
+      }
+
+      <div class="action-row">
+        <ion-button routerLink="/app/reports" expand="block">
+          <ion-icon slot="start" name="bar-chart-outline"></ion-icon>
+          Reportes
+        </ion-button>
+        <ion-button routerLink="/app/history" expand="block" fill="outline">
+          <ion-icon slot="start" name="time-outline"></ion-icon>
+          Historial
+        </ion-button>
+        <ion-button routerLink="/app/settings" expand="block" fill="outline">
+          <ion-icon slot="start" name="settings-outline"></ion-icon>
+          Ajustes
+        </ion-button>
+      </div>
+
+      <h2 class="section-title">Últimos registros</h2>
+      <section class="panel latest-panel">
+        @for (reading of readings; track reading.id) {
+          <app-reading-card [reading]="reading"></app-reading-card>
+        } @empty {
+          <app-empty-state
+            icon="list-outline"
+            title="Sin lecturas recientes"
+            message="No hay registros para mostrar todavía."
+          ></app-empty-state>
+        }
+      </section>
+    }
+  </main>
+</ion-content>

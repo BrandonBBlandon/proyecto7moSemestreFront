@@ -1,0 +1,21 @@
+.empty-state {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 26px 18px;
+  text-align: center;
+}
+
+ion-icon {
+  color: #147d8f;
+  font-size: 2rem;
+}
+
+strong {
+  color: #162b36;
+}
+
+span {
+  color: #667985;
+  font-size: 0.88rem;
+}

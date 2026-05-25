@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Smoke IoT</string>
+    <string name="title_activity_main">Smoke IoT</string>
+    <string name="package_name">com.istfinal.smokemonitoring</string>
+    <string name="custom_url_scheme">com.istfinal.smokemonitoring</string>
+</resources>

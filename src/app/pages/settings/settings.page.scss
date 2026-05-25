@@ -1,0 +1,54 @@
+.settings-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+h2 {
+  margin: 0 0 2px;
+  color: #10212b;
+  font-size: 1rem;
+}
+
+ion-item {
+  --background: #f6fafb;
+  --border-radius: 8px;
+  --padding-start: 12px;
+}
+
+ion-button {
+  --border-radius: 8px;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.backend-state,
+.message {
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: #f6fafb;
+  color: #4d626e;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.backend-state.ok {
+  background: rgba(33, 166, 122, 0.13);
+  color: #147b5d;
+}
+
+.backend-state.fail {
+  background: rgba(227, 75, 75, 0.16);
+  color: #a93131;
+}
+
+@media (max-width: 430px) {
+  .button-grid {
+    grid-template-columns: 1fr;
+  }
+}

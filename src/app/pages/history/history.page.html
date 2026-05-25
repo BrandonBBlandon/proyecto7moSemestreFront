@@ -1,0 +1,51 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Historial</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="load()" aria-label="Actualizar historial">
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="load($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <main class="page-shell">
+    @if (loading) {
+      <app-loading-state message="Consultando incidentes..."></app-loading-state>
+    } @else if (errorMessage) {
+      <app-error-state [message]="errorMessage" (retry)="load()"></app-error-state>
+    } @else if (incidents.length === 0) {
+      <app-empty-state
+        icon="shield-checkmark-outline"
+        title="Sin incidentes"
+        message="No hay eventos de advertencia o alarma registrados."
+      ></app-empty-state>
+    } @else {
+      <section class="history-list">
+        @for (incident of incidents; track incident.id) {
+          <article class="incident panel" [ngClass]="'state-' + incident.severity">
+            <div class="severity-icon">
+              <ion-icon [name]="incident.severity === 'alarm' ? 'flame-outline' : 'warning-outline'"></ion-icon>
+            </div>
+            <div>
+              <div class="incident-head">
+                <strong>{{ severityLabel(incident.severity) }}</strong>
+                <span>{{ incident.status === 'open' ? 'Abierto' : 'Cerrado' }}</span>
+              </div>
+              <p>{{ incident.startedAt | date:'dd/MM/yyyy' }} · {{ incident.startedAt | date:'HH:mm:ss' }}</p>
+              <div class="incident-meta">
+                <span>Máx. {{ incident.maxValue }}</span>
+                <span>Duración {{ incident.durationSeconds !== null ? incident.durationSeconds + ' s' : 'N/D' }}</span>
+              </div>
+            </div>
+          </article>
+        }
+      </section>
+    }
+  </main>
+</ion-content>

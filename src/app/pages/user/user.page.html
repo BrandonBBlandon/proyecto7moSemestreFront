@@ -1,0 +1,31 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Usuario</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <main class="page-shell">
+    <section class="panel user-card">
+      <div class="avatar">
+        <ion-icon name="person-circle-outline"></ion-icon>
+      </div>
+      <div>
+        <span>Sesión activa</span>
+        <h1>{{ user?.name || 'Usuario' }}</h1>
+        <p>{{ user?.username || 'Sin usuario' }}</p>
+      </div>
+    </section>
+
+    <section class="panel session-card">
+      <div>
+        <strong>Estado de sesión</strong>
+        <span>Sesión guardada localmente para el prototipo.</span>
+      </div>
+      <ion-button expand="block" color="danger" (click)="logout()">
+        <ion-icon slot="start" name="log-out-outline"></ion-icon>
+        Cerrar sesión
+      </ion-button>
+    </section>
+  </main>
+</ion-content>

@@ -1,0 +1,7 @@
+{
+  "name": "Smoke IoT",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

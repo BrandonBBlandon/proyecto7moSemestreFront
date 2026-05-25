@@ -1,0 +1,71 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Ajustes</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <main class="page-shell">
+    <section class="panel settings-card">
+      <h2>Sincronización</h2>
+      <ion-item lines="none">
+        <ion-icon name="cloud-done-outline" slot="start"></ion-icon>
+        <ion-label position="stacked">URL base del backend</ion-label>
+        <ion-input [(ngModel)]="apiUrl" placeholder="http://localhost:3000"></ion-input>
+      </ion-item>
+
+      <ion-item lines="none">
+        <ion-icon name="refresh-outline" slot="start"></ion-icon>
+        <ion-label position="stacked">Frecuencia de actualización visual (segundos)</ion-label>
+        <ion-input type="number" min="1" [(ngModel)]="refreshSeconds"></ion-input>
+      </ion-item>
+
+      <div class="button-grid">
+        <ion-button expand="block" (click)="saveGeneral()">
+          <ion-icon slot="start" name="save-outline"></ion-icon>
+          Guardar
+        </ion-button>
+        <ion-button expand="block" fill="outline" (click)="checkConnection()" [disabled]="checking">
+          @if (checking) {
+            <ion-spinner name="crescent"></ion-spinner>
+          } @else {
+            <ion-icon slot="start" name="wifi-outline"></ion-icon>
+            Probar conexión
+          }
+        </ion-button>
+      </div>
+
+      <div class="backend-state" [class.ok]="backendOk === true" [class.fail]="backendOk === false">
+        {{ backendStatus }}
+      </div>
+    </section>
+
+    <section class="panel settings-card">
+      <h2>Dispositivo Wi-Fi</h2>
+      <ion-item lines="none">
+        <ion-icon name="wifi-outline" slot="start"></ion-icon>
+        <ion-label position="stacked">SSID</ion-label>
+        <ion-input [(ngModel)]="ssid"></ion-input>
+      </ion-item>
+
+      <ion-item lines="none">
+        <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
+        <ion-label position="stacked">Contraseña</ion-label>
+        <ion-input type="password" [(ngModel)]="wifiPassword"></ion-input>
+      </ion-item>
+
+      <ion-button expand="block" fill="outline" (click)="saveWifi()" [disabled]="savingWifi">
+        @if (savingWifi) {
+          <ion-spinner name="crescent"></ion-spinner>
+        } @else {
+          <ion-icon slot="start" name="save-outline"></ion-icon>
+          Guardar configuración
+        }
+      </ion-button>
+    </section>
+
+    @if (message) {
+      <div class="message panel">{{ message }}</div>
+    }
+  </main>
+</ion-content>

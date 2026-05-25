@@ -1,0 +1,8 @@
+<div class="error-state panel">
+  <ion-icon name="alert-circle-outline"></ion-icon>
+  <span>{{ message }}</span>
+  <ion-button size="small" fill="outline" (click)="retry.emit()">
+    <ion-icon slot="start" name="refresh-outline"></ion-icon>
+    Reintentar
+  </ion-button>
+</div>

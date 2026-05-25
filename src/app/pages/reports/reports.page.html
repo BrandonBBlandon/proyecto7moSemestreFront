@@ -1,0 +1,117 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Reportes</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <main class="page-shell">
+    <section class="panel report-controls">
+      <ion-segment [(ngModel)]="mode">
+        <ion-segment-button value="daily">
+          <ion-label>Día</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="range">
+          <ion-label>Rango</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="monthly">
+          <ion-label>Mes</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+
+      @if (mode === 'daily') {
+        <ion-item lines="none">
+          <ion-icon name="calendar-number-outline" slot="start"></ion-icon>
+          <ion-label position="stacked">Fecha</ion-label>
+          <ion-input type="date" [(ngModel)]="dailyDate"></ion-input>
+        </ion-item>
+      } @else if (mode === 'range') {
+        <div class="two-fields">
+          <ion-item lines="none">
+            <ion-label position="stacked">Desde</ion-label>
+            <ion-input type="date" [(ngModel)]="fromDate"></ion-input>
+          </ion-item>
+          <ion-item lines="none">
+            <ion-label position="stacked">Hasta</ion-label>
+            <ion-input type="date" [(ngModel)]="toDate"></ion-input>
+          </ion-item>
+        </div>
+      } @else {
+        <ion-item lines="none">
+          <ion-icon name="calendar-number-outline" slot="start"></ion-icon>
+          <ion-label position="stacked">Mes</ion-label>
+          <ion-input type="month" [(ngModel)]="monthValue"></ion-input>
+        </ion-item>
+      }
+
+      <ion-button expand="block" (click)="query()" [disabled]="loading">
+        <ion-icon slot="start" name="search-outline"></ion-icon>
+        Consultar
+      </ion-button>
+    </section>
+
+    @if (loading) {
+      <app-loading-state message="Generando reporte..."></app-loading-state>
+    } @else if (errorMessage) {
+      <app-error-state [message]="errorMessage" (retry)="query()"></app-error-state>
+    } @else if (emptyReport()) {
+      <app-empty-state
+        icon="document-text-outline"
+        title="No hay registros para este periodo"
+        message="Prueba con otra fecha o espera nuevas lecturas del dispositivo."
+      ></app-empty-state>
+    } @else if (report) {
+      <section class="panel summary-card">
+        <div class="summary-head">
+          <div>
+            <span>Resumen del periodo</span>
+            <strong>{{ report.totalReadings }} registros</strong>
+          </div>
+          <div class="risk" [ngClass]="'risk-' + report.riskLevel">
+            Riesgo {{ riskLabel(report.riskLevel) }}
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric">
+            <span>Incidentes</span>
+            <strong>{{ report.totalIncidents }}</strong>
+          </div>
+          <div class="metric">
+            <span>Promedio</span>
+            <strong>{{ report.averageValue | number:'1.0-2' }}</strong>
+          </div>
+          <div class="metric">
+            <span>Valor máximo</span>
+            <strong>{{ report.maxValue | number:'1.0-2' }}</strong>
+          </div>
+          <div class="metric">
+            <span>Tiempo alarma</span>
+            <strong>{{ report.alarmTimeSeconds }} s</strong>
+          </div>
+        </div>
+      </section>
+
+      @if (days.length > 0) {
+        <h2 class="section-title">Detalle por día</h2>
+        <ion-list class="panel days-list">
+          @for (day of days; track day.date) {
+            <ion-item lines="full">
+              <ion-label>
+                <strong>{{ day.date }}</strong>
+                <p>{{ day.totalReadings }} registros · {{ day.totalIncidents }} incidentes</p>
+              </ion-label>
+              <span slot="end">Máx. {{ day.maxValue | number:'1.0-2' }}</span>
+            </ion-item>
+          }
+        </ion-list>
+      }
+    } @else {
+      <app-empty-state
+        icon="bar-chart-outline"
+        title="Consulta un reporte"
+        message="Selecciona el periodo que quieres revisar."
+      ></app-empty-state>
+    }
+  </main>
+</ion-content>

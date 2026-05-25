@@ -1,0 +1,45 @@
+.reading-card {
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(16, 33, 43, 0.08);
+}
+
+.reading-card:last-child {
+  border-bottom: 0;
+}
+
+.reading-status {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--state-soft);
+  color: var(--state-color);
+  font-size: 1.25rem;
+}
+
+.reading-main strong {
+  display: block;
+  color: #10212b;
+  font-size: 1rem;
+}
+
+.reading-main span {
+  display: block;
+  margin-top: 2px;
+  color: #667985;
+  font-size: 0.78rem;
+}
+
+.badge {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--state-soft);
+  color: var(--state-color);
+  font-size: 0.75rem;
+  font-weight: 700;
+}

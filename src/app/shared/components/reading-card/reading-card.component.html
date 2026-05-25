@@ -1,0 +1,10 @@
+<article class="reading-card" [ngClass]="'state-' + reading.status">
+  <div class="reading-status">
+    <ion-icon [name]="iconName()"></ion-icon>
+  </div>
+  <div class="reading-main">
+    <strong>{{ reading.processedValue | number:'1.0-2' }}</strong>
+    <span>{{ reading.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+  </div>
+  <span class="badge">{{ label() }}</span>
+</article>

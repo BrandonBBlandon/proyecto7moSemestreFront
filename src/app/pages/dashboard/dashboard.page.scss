@@ -1,0 +1,31 @@
+.event-card {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 14px;
+  border-left: 6px solid #e34b4b;
+  background: #fff8f8;
+}
+
+.event-card ion-icon {
+  color: #e34b4b;
+  font-size: 1.8rem;
+}
+
+.event-card strong {
+  display: block;
+  color: #9d2b2b;
+}
+
+.event-card span {
+  display: block;
+  margin-top: 3px;
+  color: #6e4d4d;
+  font-size: 0.84rem;
+}
+
+.latest-panel {
+  padding: 2px 14px;
+}

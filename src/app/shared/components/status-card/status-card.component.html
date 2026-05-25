@@ -1,0 +1,26 @@
+<section class="status-card panel" [ngClass]="'state-' + current.status">
+  <div class="status-top">
+    <div>
+      <span>Estado del ambiente</span>
+      <strong>{{ statusLabel() }}</strong>
+    </div>
+    <div class="status-icon">
+      <ion-icon [name]="iconName()"></ion-icon>
+    </div>
+  </div>
+
+  <div class="sensor-value">
+    <span>Valor actual</span>
+    <strong>{{ current.processedValue | number:'1.0-2' }}</strong>
+  </div>
+
+  <div class="status-bottom">
+    <div>
+      <span>Última lectura</span>
+      <strong>{{ current.lastReadingAt ? (current.lastReadingAt | date:'dd/MM/yyyy HH:mm') : 'Sin datos' }}</strong>
+    </div>
+    <div [ngClass]="'device state-' + current.deviceStatus">
+      <span>{{ deviceLabel() }}</span>
+    </div>
+  </div>
+</section>
