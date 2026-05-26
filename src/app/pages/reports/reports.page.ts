@@ -1,7 +1,7 @@
 import { DecimalPipe, NgClass } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Observable } from 'rxjs';
+import { finalize, Observable } from 'rxjs';
 import {
   IonButton,
   IonContent,
@@ -51,7 +51,7 @@ type ReportMode = 'daily' | 'range' | 'monthly';
   templateUrl: './reports.page.html',
   styleUrl: './reports.page.scss'
 })
-export class ReportsPage {
+export class ReportsPage implements OnInit {
   mode: ReportMode = 'daily';
   dailyDate = this.today();
   fromDate = this.today();
@@ -64,27 +64,31 @@ export class ReportsPage {
 
   constructor(private readonly api: SmokeMonitoringApiService) {}
 
+  ngOnInit(): void {
+    this.query();
+  }
+
   query(): void {
     this.loading = true;
     this.errorMessage = '';
     this.report = null;
     this.days = [];
 
-    const request: Observable<ReportResult> =
-      this.mode === 'daily'
-        ? this.api.getDailyReport(this.dailyDate)
-        : this.mode === 'range'
-          ? this.api.getRangeReport(this.fromDate, this.toDate)
-          : this.api.getMonthlyReport(Number(this.monthValue.slice(0, 4)), Number(this.monthValue.slice(5, 7)));
+    const request = this.createRequest();
+    if (!request) {
+      this.loading = false;
+      return;
+    }
 
-    request.subscribe({
+    console.log('[Reports] solicitando reportes...');
+
+    request.pipe(finalize(() => (this.loading = false))).subscribe({
       next: (report: ReportResult) => {
-        this.loading = false;
+        console.log('[Reports] respuesta:', report);
         this.report = report;
         this.days = 'days' in report ? report.days : [];
       },
       error: (error: Error) => {
-        this.loading = false;
         this.errorMessage = error.message || 'No se pudo consultar el reporte.';
       }
     });
@@ -106,5 +110,37 @@ export class ReportsPage {
 
   private today(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private createRequest(): Observable<ReportResult> | null {
+    if (this.mode === 'daily') {
+      if (!this.dailyDate) {
+        this.errorMessage = 'Selecciona una fecha para consultar el reporte diario.';
+        return null;
+      }
+
+      return this.api.getDailyReport(this.dailyDate);
+    }
+
+    if (this.mode === 'range') {
+      if (!this.fromDate || !this.toDate) {
+        this.errorMessage = 'Selecciona las fechas desde y hasta para consultar el reporte.';
+        return null;
+      }
+
+      if (this.fromDate > this.toDate) {
+        this.errorMessage = 'La fecha inicial no puede ser mayor que la fecha final.';
+        return null;
+      }
+
+      return this.api.getRangeReport(this.fromDate, this.toDate);
+    }
+
+    if (!/^\d{4}-\d{2}$/.test(this.monthValue)) {
+      this.errorMessage = 'Selecciona un mes valido para consultar el reporte mensual.';
+      return null;
+    }
+
+    return this.api.getMonthlyReport(Number(this.monthValue.slice(0, 4)), Number(this.monthValue.slice(5, 7)));
   }
 }

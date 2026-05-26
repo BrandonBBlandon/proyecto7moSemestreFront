@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { catchError, map, Observable, of, throwError } from 'rxjs';
+import { catchError, map, Observable, of, throwError, timeout } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { Incident, IncidentsResponse } from '../models/incident.model';
@@ -47,38 +47,54 @@ interface LegacyRecentReport extends LegacyReportSummary {
 
 interface LegacyReading {
   id: number;
+  deviceId?: number;
   sensorValue: number;
   processedValue?: number;
   status: string;
   createdAt: string;
 }
 
+interface CurrentStatusEnvelope {
+  current?: LegacyReading | null;
+  latestReading?: LegacyReading | null;
+  sensorValue?: number | null;
+  processedValue?: number | null;
+  status?: string;
+  deviceStatus?: string;
+  lastReadingAt?: string | null;
+  createdAt?: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class SmokeMonitoringApiService {
-  private readonly apiUrlStorageKey = 'https://proyecto7mosemestre.onrender.com';
+  private readonly apiUrlStorageKey = 'smoke_monitoring_api_url';
+  private readonly legacyApiUrlStorageKey = 'https://proyecto7mosemestre.onrender.com';
+  private readonly requestTimeoutMs = 20000;
 
   constructor(private readonly http: HttpClient) {}
 
   getApiUrl(): string {
-    return localStorage.getItem(this.apiUrlStorageKey) || environment.apiUrl;
+    const storedUrl = localStorage.getItem(this.apiUrlStorageKey) || localStorage.getItem(this.legacyApiUrlStorageKey);
+    return this.normalizeApiUrl(storedUrl || environment.apiUrl || '');
   }
 
   setApiUrl(value: string): void {
-    const normalized = value.trim().replace(/\/+$/, '');
+    const normalized = this.normalizeApiUrl(value);
     if (normalized) {
       localStorage.setItem(this.apiUrlStorageKey, normalized);
+      localStorage.removeItem(this.legacyApiUrlStorageKey);
     }
   }
 
   login(username: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(this.url('/api/auth/login'), { username, password });
+    return this.post<LoginResponse>('/api/auth/login', { username, password });
   }
 
   getCurrentStatus(): Observable<CurrentStatus> {
-    return this.http.get<CurrentStatus>(this.url('/api/monitoring/current')).pipe(
-      map((status) => this.normalizeCurrentStatus(status)),
+    return this.get<CurrentStatus | LegacyEnvelope<CurrentStatusEnvelope>>('/api/monitoring/current').pipe(
+      map((status) => this.normalizeCurrentStatusResponse(status)),
       catchError(() => this.getCurrentStatusFromLegacyReadings())
     );
   }
@@ -86,12 +102,10 @@ export class SmokeMonitoringApiService {
   getLatestReadings(limit = 10): Observable<LatestReadingsResponse> {
     const params = new HttpParams().set('limit', limit);
 
-    return this.http.get<LatestReadingsResponse>(this.url('/api/readings/latest'), { params }).pipe(
-      map((response) => ({
-        items: (response.items || []).map((item) => this.normalizeReading(item))
-      })),
+    return this.get<LatestReadingsResponse | LegacyEnvelope<LegacyReading[]>>('/api/readings/latest', { params }).pipe(
+      map((response) => this.normalizeLatestReadingsResponse(response)),
       catchError(() =>
-        this.http.get<LegacyEnvelope<LegacyReading[]>>(this.url('/api/readings'), { params }).pipe(
+        this.get<LegacyEnvelope<LegacyReading[]>>('/api/readings', { params }).pipe(
           map((response) => ({
             items: (response.data || []).map((item) => this.normalizeReading(item))
           })),
@@ -105,10 +119,10 @@ export class SmokeMonitoringApiService {
     const finalParams = new HttpParams().set('date', date);
     const legacyParams = new HttpParams().set('type', 'daily').set('date', date);
 
-    return this.http.get<DailyReport>(this.url('/api/reports/daily'), { params: finalParams }).pipe(
-      map((report) => this.normalizeDailyReport(report)),
+    return this.get<DailyReport | LegacyEnvelope<DailyReport>>('/api/reports/daily', { params: finalParams }).pipe(
+      map((report) => this.normalizeDailyReport(this.unwrapData(report) || { date, ...this.emptyBaseReport() })),
       catchError(() =>
-        this.http.get<LegacyEnvelope<DailyReport>>(this.url('/api/reports'), { params: legacyParams }).pipe(
+        this.get<LegacyEnvelope<DailyReport>>('/api/reports', { params: legacyParams }).pipe(
           map((response) => this.normalizeDailyReport(response.data ? response.data : { date, ...this.emptyBaseReport() })),
           catchError((error) => this.handleError(error, 'No se pudo consultar el reporte diario.'))
         )
@@ -120,10 +134,10 @@ export class SmokeMonitoringApiService {
     const finalParams = new HttpParams().set('from', from).set('to', to);
     const legacyParams = new HttpParams().set('type', 'range').set('from', from).set('to', to);
 
-    return this.http.get<RangeReport>(this.url('/api/reports/range'), { params: finalParams }).pipe(
-      map((report) => this.normalizeRangeReport(report)),
+    return this.get<RangeReport | LegacyEnvelope<LegacyRangeReport>>('/api/reports/range', { params: finalParams }).pipe(
+      map((report) => this.normalizeRangeReportResponse(report, from, to)),
       catchError(() =>
-        this.http.get<LegacyEnvelope<LegacyRangeReport>>(this.url('/api/reports'), { params: legacyParams }).pipe(
+        this.get<LegacyEnvelope<LegacyRangeReport>>('/api/reports', { params: legacyParams }).pipe(
           map((response) => this.mapLegacyRangeReport(response.data, from, to)),
           catchError((error) => this.handleError(error, 'No se pudo consultar el reporte por rango.'))
         )
@@ -133,13 +147,14 @@ export class SmokeMonitoringApiService {
 
   getMonthlyReport(year: number, month: number): Observable<MonthlyReport> {
     const monthText = String(month).padStart(2, '0');
-    const finalParams = new HttpParams().set('year', year).set('month', monthText);
-    const legacyParams = new HttpParams().set('type', 'monthly').set('month', `${year}-${monthText}`);
+    const monthParam = `${year}-${monthText}`;
+    const finalParams = new HttpParams().set('month', monthParam);
+    const legacyParams = new HttpParams().set('type', 'monthly').set('month', monthParam);
 
-    return this.http.get<MonthlyReport>(this.url('/api/reports/monthly'), { params: finalParams }).pipe(
-      map((report) => this.normalizeMonthlyReport(report)),
+    return this.get<MonthlyReport | LegacyEnvelope<LegacyMonthlyReport>>('/api/reports/monthly', { params: finalParams }).pipe(
+      map((report) => this.normalizeMonthlyReportResponse(report, year, month)),
       catchError(() =>
-        this.http.get<LegacyEnvelope<LegacyMonthlyReport>>(this.url('/api/reports'), { params: legacyParams }).pipe(
+        this.get<LegacyEnvelope<LegacyMonthlyReport>>('/api/reports', { params: legacyParams }).pipe(
           map((response) => this.mapLegacyMonthlyReport(response.data, year, month)),
           catchError((error) => this.handleError(error, 'No se pudo consultar el reporte mensual.'))
         )
@@ -148,25 +163,19 @@ export class SmokeMonitoringApiService {
   }
 
   getIncidents(limit = 20): Observable<IncidentsResponse> {
-    const finalParams = new HttpParams().set('limit', limit);
-    const legacyParams = new HttpParams().set('type', 'recent').set('limit', limit);
+    const params = new HttpParams().set('type', 'recent').set('limit', limit);
 
-    return this.http.get<IncidentsResponse>(this.url('/api/incidents'), { params: finalParams }).pipe(
-      map((response) => ({ items: response.items || [] })),
-      catchError(() =>
-        this.http.get<LegacyEnvelope<LegacyRecentReport>>(this.url('/api/reports'), { params: legacyParams }).pipe(
-          map((response) => ({ items: this.mapLegacyIncidents(response.data?.readings || []) })),
-          catchError(() => of({ items: [] }))
-        )
-      )
+    return this.get<LegacyEnvelope<LegacyRecentReport>>('/api/reports', { params }).pipe(
+      map((response) => ({ items: this.mapLegacyIncidents(response.data?.readings || []) })),
+      catchError((error) => this.handleError(error, 'No se pudo consultar el historial.'))
     );
   }
 
   checkHealth(): Observable<{ ok: boolean }> {
-    return this.http.get<{ ok: boolean }>(this.url('/api/health')).pipe(
+    return this.get<{ ok: boolean }>('/api/health').pipe(
       map((response) => ({ ok: response.ok === true })),
       catchError(() =>
-        this.http.get<LegacyEnvelope<LegacyReading[]>>(this.url('/api/readings'), {
+        this.get<LegacyEnvelope<LegacyReading[]>>('/api/readings', {
           params: new HttpParams().set('limit', 1)
         }).pipe(
           map((response) => ({ ok: response.ok !== false })),
@@ -177,7 +186,7 @@ export class SmokeMonitoringApiService {
   }
 
   saveWifiConfig(ssid: string, password: string): Observable<{ success: boolean; message: string }> {
-    return this.http.post<{ success: boolean; message: string }>(this.url('/api/device/wifi-config'), { ssid, password }).pipe(
+    return this.post<{ success: boolean; message: string }>('/api/device/wifi-config', { ssid, password }).pipe(
       catchError((error: HttpErrorResponse) => {
         if (error.status === 404 || error.status === 0) {
           return of({
@@ -192,7 +201,7 @@ export class SmokeMonitoringApiService {
   }
 
   private getCurrentStatusFromLegacyReadings(): Observable<CurrentStatus> {
-    return this.http.get<LegacyEnvelope<LegacyReading[]>>(this.url('/api/readings'), {
+    return this.get<LegacyEnvelope<LegacyReading[]>>('/api/readings', {
       params: new HttpParams().set('limit', 1)
     }).pipe(
       map((response) => {
@@ -220,8 +229,85 @@ export class SmokeMonitoringApiService {
     );
   }
 
-  private url(path: string): string {
-    return `${this.getApiUrl()}${path}`;
+  private get<T>(path: string, options?: { params?: HttpParams }): Observable<T> {
+    const url = this.url(path);
+    if (!url) {
+      return this.missingApiUrlError();
+    }
+
+    return this.http.get<T>(url, options).pipe(timeout(this.requestTimeoutMs));
+  }
+
+  private post<T>(path: string, body: unknown): Observable<T> {
+    const url = this.url(path);
+    if (!url) {
+      return this.missingApiUrlError();
+    }
+
+    return this.http.post<T>(url, body).pipe(timeout(this.requestTimeoutMs));
+  }
+
+  private url(path: string): string | null {
+    const apiUrl = this.getApiUrl();
+    console.log('[API_URL]', apiUrl);
+
+    if (!apiUrl) {
+      return null;
+    }
+
+    return `${apiUrl}${path}`;
+  }
+
+  private missingApiUrlError<T>(): Observable<T> {
+    const message = 'URL del backend no configurada. Define apiUrl en environment o guarda la URL en Ajustes.';
+    console.error(message);
+    return throwError(() => new Error(message));
+  }
+
+  private normalizeApiUrl(value: string): string {
+    return value.trim().replace(/\/+$/, '');
+  }
+
+  private unwrapData<T>(response: unknown): T {
+    if (this.isEnvelope(response)) {
+      if (response.ok === false) {
+        throw new Error(response.message || 'El backend respondio con error.');
+      }
+
+      return response.data as T;
+    }
+
+    return response as T;
+  }
+
+  private isEnvelope(response: unknown): response is LegacyEnvelope<unknown> {
+    return !!response && typeof response === 'object' && ('ok' in response || 'data' in response);
+  }
+
+  private normalizeCurrentStatusResponse(response: CurrentStatus | LegacyEnvelope<CurrentStatusEnvelope>): CurrentStatus {
+    const status = this.unwrapData<CurrentStatus | CurrentStatusEnvelope>(response);
+    const source = (status || {}) as CurrentStatusEnvelope;
+    const reading = source.current || source.latestReading || null;
+    const lastReadingAt = source.lastReadingAt || source.createdAt || reading?.createdAt || null;
+    const sensorValue = source.sensorValue ?? reading?.sensorValue ?? 0;
+    const processedValue = source.processedValue ?? reading?.processedValue ?? sensorValue;
+
+    return {
+      sensorValue: this.toNumber(sensorValue),
+      processedValue: this.toNumber(processedValue),
+      status: this.normalizeStatus(source.status || reading?.status || 'normal'),
+      deviceStatus: this.normalizeDeviceStatus(source.deviceStatus || (lastReadingAt ? this.inferDeviceStatus(lastReadingAt) : 'disconnected')),
+      lastReadingAt
+    };
+  }
+
+  private normalizeLatestReadingsResponse(response: LatestReadingsResponse | LegacyEnvelope<LegacyReading[]>): LatestReadingsResponse {
+    const data = this.unwrapData<LatestReadingsResponse | LegacyReading[] | undefined>(response);
+    const items: Array<Reading | LegacyReading> = Array.isArray(data) ? data : (data?.items || []);
+
+    return {
+      items: items.map((item) => this.normalizeReading(item))
+    };
   }
 
   private normalizeCurrentStatus(status: CurrentStatus): CurrentStatus {
@@ -261,6 +347,20 @@ export class SmokeMonitoringApiService {
     };
   }
 
+  private normalizeRangeReportResponse(response: RangeReport | LegacyEnvelope<LegacyRangeReport>, from: string, to: string): RangeReport {
+    const report = this.unwrapData<RangeReport | LegacyRangeReport | undefined>(response);
+
+    if (!report) {
+      return { from, to, ...this.emptyBaseReport(), days: [] };
+    }
+
+    if ('summary' in report || 'byDay' in report) {
+      return this.mapLegacyRangeReport(report as LegacyRangeReport, from, to);
+    }
+
+    return this.normalizeRangeReport(report);
+  }
+
   private normalizeMonthlyReport(report: MonthlyReport): MonthlyReport {
     return {
       year: this.toNumber(report.year),
@@ -268,6 +368,20 @@ export class SmokeMonitoringApiService {
       ...this.normalizeBaseReport(report),
       days: (report.days || []).map((day) => this.normalizeReportDay(day))
     };
+  }
+
+  private normalizeMonthlyReportResponse(response: MonthlyReport | LegacyEnvelope<LegacyMonthlyReport>, year: number, month: number): MonthlyReport {
+    const report = this.unwrapData<MonthlyReport | LegacyMonthlyReport | undefined>(response);
+
+    if (!report) {
+      return { year, month, ...this.emptyBaseReport(), days: [] };
+    }
+
+    if ('summary' in report || 'byDay' in report) {
+      return this.mapLegacyMonthlyReport(report as LegacyMonthlyReport, year, month);
+    }
+
+    return this.normalizeMonthlyReport(report);
   }
 
   private mapLegacyRangeReport(report: LegacyRangeReport | undefined, from: string, to: string): RangeReport {
@@ -288,14 +402,18 @@ export class SmokeMonitoringApiService {
     };
   }
 
-  private normalizeBaseReport(report: BaseReport): BaseReport {
+  private normalizeBaseReport(report: Partial<BaseReport> & Partial<LegacyReportSummary>): BaseReport {
+    const warningCount = this.toNumber(report.warningCount);
+    const alarmCount = this.toNumber(report.alarmCount);
+    const totalReadings = this.toNumber(report.totalReadings);
+
     return {
-      totalReadings: this.toNumber(report.totalReadings),
-      totalIncidents: this.toNumber(report.totalIncidents),
+      totalReadings,
+      totalIncidents: report.totalIncidents === undefined ? warningCount + alarmCount : this.toNumber(report.totalIncidents),
       averageValue: this.toNumber(report.averageValue),
       maxValue: this.toNumber(report.maxValue),
       alarmTimeSeconds: this.toNumber(report.alarmTimeSeconds),
-      riskLevel: this.normalizeRiskLevel(report.riskLevel)
+      riskLevel: report.riskLevel ? this.normalizeRiskLevel(report.riskLevel) : this.deriveRiskLevel(alarmCount, warningCount, totalReadings)
     };
   }
 
@@ -409,8 +527,19 @@ export class SmokeMonitoringApiService {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  private handleError(error: HttpErrorResponse, message: string): Observable<never> {
-    const detail = typeof error.error?.message === 'string' ? error.error.message : message;
+  private handleError(error: unknown, message: string): Observable<never> {
+    console.error('[API Error]', error);
+
+    if (error instanceof HttpErrorResponse) {
+      const detail = typeof error.error?.message === 'string' ? error.error.message : message;
+      return throwError(() => new Error(detail));
+    }
+
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return throwError(() => new Error('El backend no respondio a tiempo. Intenta de nuevo.'));
+    }
+
+    const detail = error instanceof Error ? error.message : message;
     return throwError(() => new Error(detail));
   }
 }
