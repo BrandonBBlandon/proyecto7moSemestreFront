@@ -1,4 +1,4 @@
-export type RiskLevel = 'low' | 'medium' | 'high';
+export type RiskLevel = 'normal' | 'warning' | 'alarm';
 
 export interface ReportDay {
   date: string;

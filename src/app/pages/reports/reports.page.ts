@@ -82,9 +82,13 @@ export class ReportsPage implements OnInit {
 
     console.log('[Reports] solicitando reportes...');
 
-    request.pipe(finalize(() => (this.loading = false))).subscribe({
+    request.pipe(
+      finalize(() => {
+        this.loading = false;
+        console.log('[Reports] loading false');
+      })
+    ).subscribe({
       next: (report: ReportResult) => {
-        console.log('[Reports] respuesta:', report);
         this.report = report;
         this.days = 'days' in report ? report.days : [];
       },
@@ -96,9 +100,9 @@ export class ReportsPage implements OnInit {
 
   riskLabel(level: RiskLevel): string {
     const labels = {
-      low: 'Bajo',
-      medium: 'Medio',
-      high: 'Alto'
+      normal: 'Normal',
+      warning: 'Advertencia',
+      alarm: 'Alarma'
     };
 
     return labels[level];

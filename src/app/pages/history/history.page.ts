@@ -1,5 +1,6 @@
 import { DatePipe, NgClass } from '@angular/common';
 import { Component } from '@angular/core';
+import { finalize } from 'rxjs';
 import {
   IonButton,
   IonButtons,
@@ -56,16 +57,17 @@ export class HistoryPage {
     this.loading = !event;
     this.errorMessage = '';
 
-    this.api.getIncidents(20).subscribe({
-      next: (response) => {
-        this.incidents = response.items;
+    this.api.getIncidents(20).pipe(
+      finalize(() => {
         this.loading = false;
         event?.target.complete();
+      })
+    ).subscribe({
+      next: (response) => {
+        this.incidents = response.items;
       },
       error: (error: Error) => {
         this.errorMessage = error.message || 'No se pudo consultar el historial.';
-        this.loading = false;
-        event?.target.complete();
       }
     });
   }

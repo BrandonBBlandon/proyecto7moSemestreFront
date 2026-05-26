@@ -16,9 +16,15 @@ interface LegacyEnvelope<T> {
 
 interface LegacyReportSummary {
   totalReadings?: number;
+  totalIncidents?: number;
   averageValue?: number;
+  avgSmokeValue?: number;
   maxValue?: number;
+  maxSmokeValue?: number;
   minValue?: number;
+  alarmTimeSeconds?: number;
+  totalAlarmSeconds?: number;
+  riskLevel?: string;
   normalCount?: number;
   warningCount?: number;
   alarmCount?: number;
@@ -72,6 +78,7 @@ export class SmokeMonitoringApiService {
   private readonly apiUrlStorageKey = 'smoke_monitoring_api_url';
   private readonly legacyApiUrlStorageKey = 'https://proyecto7mosemestre.onrender.com';
   private readonly requestTimeoutMs = 20000;
+  private readonly loggedApiUrls = new Set<string>();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -119,12 +126,17 @@ export class SmokeMonitoringApiService {
     const finalParams = new HttpParams().set('date', date);
     const legacyParams = new HttpParams().set('type', 'daily').set('date', date);
 
-    return this.get<DailyReport | LegacyEnvelope<DailyReport>>('/api/reports/daily', { params: finalParams }).pipe(
-      map((report) => this.normalizeDailyReport(this.unwrapData(report) || { date, ...this.emptyBaseReport() })),
+    return this.get<DailyReport | LegacyEnvelope<DailyReport>>('/api/reportes/daily', { params: finalParams }).pipe(
+      map((report) => this.normalizeDailyReportResponse(report, date)),
       catchError(() =>
-        this.get<LegacyEnvelope<DailyReport>>('/api/reports', { params: legacyParams }).pipe(
-          map((response) => this.normalizeDailyReport(response.data ? response.data : { date, ...this.emptyBaseReport() })),
-          catchError((error) => this.handleError(error, 'No se pudo consultar el reporte diario.'))
+        this.get<DailyReport | LegacyEnvelope<DailyReport>>('/api/reports/daily', { params: finalParams }).pipe(
+          map((report) => this.normalizeDailyReportResponse(report, date)),
+          catchError(() =>
+            this.get<LegacyEnvelope<DailyReport>>('/api/reports', { params: legacyParams }).pipe(
+              map((response) => this.normalizeDailyReportResponse(response, date)),
+              catchError((error) => this.handleError(error, 'No se pudo consultar el reporte diario.'))
+            )
+          )
         )
       )
     );
@@ -134,12 +146,17 @@ export class SmokeMonitoringApiService {
     const finalParams = new HttpParams().set('from', from).set('to', to);
     const legacyParams = new HttpParams().set('type', 'range').set('from', from).set('to', to);
 
-    return this.get<RangeReport | LegacyEnvelope<LegacyRangeReport>>('/api/reports/range', { params: finalParams }).pipe(
+    return this.get<RangeReport | LegacyEnvelope<LegacyRangeReport>>('/api/reportes/range', { params: finalParams }).pipe(
       map((report) => this.normalizeRangeReportResponse(report, from, to)),
       catchError(() =>
-        this.get<LegacyEnvelope<LegacyRangeReport>>('/api/reports', { params: legacyParams }).pipe(
-          map((response) => this.mapLegacyRangeReport(response.data, from, to)),
-          catchError((error) => this.handleError(error, 'No se pudo consultar el reporte por rango.'))
+        this.get<RangeReport | LegacyEnvelope<LegacyRangeReport>>('/api/reports/range', { params: finalParams }).pipe(
+          map((report) => this.normalizeRangeReportResponse(report, from, to)),
+          catchError(() =>
+            this.get<LegacyEnvelope<LegacyRangeReport>>('/api/reports', { params: legacyParams }).pipe(
+              map((response) => this.mapLegacyRangeReport(response.data, from, to)),
+              catchError((error) => this.handleError(error, 'No se pudo consultar el reporte por rango.'))
+            )
+          )
         )
       )
     );
@@ -151,12 +168,17 @@ export class SmokeMonitoringApiService {
     const finalParams = new HttpParams().set('month', monthParam);
     const legacyParams = new HttpParams().set('type', 'monthly').set('month', monthParam);
 
-    return this.get<MonthlyReport | LegacyEnvelope<LegacyMonthlyReport>>('/api/reports/monthly', { params: finalParams }).pipe(
+    return this.get<MonthlyReport | LegacyEnvelope<LegacyMonthlyReport>>('/api/reportes/monthly', { params: finalParams }).pipe(
       map((report) => this.normalizeMonthlyReportResponse(report, year, month)),
       catchError(() =>
-        this.get<LegacyEnvelope<LegacyMonthlyReport>>('/api/reports', { params: legacyParams }).pipe(
-          map((response) => this.mapLegacyMonthlyReport(response.data, year, month)),
-          catchError((error) => this.handleError(error, 'No se pudo consultar el reporte mensual.'))
+        this.get<MonthlyReport | LegacyEnvelope<LegacyMonthlyReport>>('/api/reports/monthly', { params: finalParams }).pipe(
+          map((report) => this.normalizeMonthlyReportResponse(report, year, month)),
+          catchError(() =>
+            this.get<LegacyEnvelope<LegacyMonthlyReport>>('/api/reports', { params: legacyParams }).pipe(
+              map((response) => this.mapLegacyMonthlyReport(response.data, year, month)),
+              catchError((error) => this.handleError(error, 'No se pudo consultar el reporte mensual.'))
+            )
+          )
         )
       )
     );
@@ -165,9 +187,14 @@ export class SmokeMonitoringApiService {
   getIncidents(limit = 20): Observable<IncidentsResponse> {
     const params = new HttpParams().set('type', 'recent').set('limit', limit);
 
-    return this.get<LegacyEnvelope<LegacyRecentReport>>('/api/reports', { params }).pipe(
+    return this.get<LegacyEnvelope<LegacyRecentReport>>('/api/reportes', { params }).pipe(
       map((response) => ({ items: this.mapLegacyIncidents(response.data?.readings || []) })),
-      catchError((error) => this.handleError(error, 'No se pudo consultar el historial.'))
+      catchError(() =>
+        this.get<LegacyEnvelope<LegacyRecentReport>>('/api/reports', { params }).pipe(
+          map((response) => ({ items: this.mapLegacyIncidents(response.data?.readings || []) })),
+          catchError((error) => this.handleError(error, 'No se pudo consultar el historial.'))
+        )
+      )
     );
   }
 
@@ -249,7 +276,10 @@ export class SmokeMonitoringApiService {
 
   private url(path: string): string | null {
     const apiUrl = this.getApiUrl();
-    console.log('[API_URL]', apiUrl);
+    if (!this.loggedApiUrls.has(apiUrl)) {
+      console.log('[API_URL]', apiUrl);
+      this.loggedApiUrls.add(apiUrl);
+    }
 
     if (!apiUrl) {
       return null;
@@ -274,7 +304,9 @@ export class SmokeMonitoringApiService {
         throw new Error(response.message || 'El backend respondio con error.');
       }
 
-      return response.data as T;
+      if ('data' in response) {
+        return response.data as T;
+      }
     }
 
     return response as T;
@@ -331,18 +363,27 @@ export class SmokeMonitoringApiService {
     };
   }
 
-  private normalizeDailyReport(report: DailyReport): DailyReport {
+  private normalizeDailyReport(report: Partial<DailyReport> & Partial<LegacyReportSummary>, fallbackDate: string): DailyReport {
     return {
-      date: report.date,
+      date: report.date || fallbackDate,
       ...this.normalizeBaseReport(report)
     };
   }
 
+  private normalizeDailyReportResponse(response: DailyReport | LegacyEnvelope<DailyReport>, fallbackDate: string): DailyReport {
+    const report = this.unwrapData<DailyReport | undefined>(response);
+    const normalized = this.normalizeDailyReport(this.getReportSummary(report), report?.date || fallbackDate);
+    console.log('[Reports] respuesta normalizada:', normalized);
+    return normalized;
+  }
+
   private normalizeRangeReport(report: RangeReport): RangeReport {
+    const summary = this.getReportSummary(report);
+
     return {
       from: report.from,
       to: report.to,
-      ...this.normalizeBaseReport(report),
+      ...this.normalizeBaseReport(summary),
       days: (report.days || []).map((day) => this.normalizeReportDay(day))
     };
   }
@@ -362,10 +403,12 @@ export class SmokeMonitoringApiService {
   }
 
   private normalizeMonthlyReport(report: MonthlyReport): MonthlyReport {
+    const summary = this.getReportSummary(report);
+
     return {
       year: this.toNumber(report.year),
       month: this.toNumber(report.month),
-      ...this.normalizeBaseReport(report),
+      ...this.normalizeBaseReport(summary),
       days: (report.days || []).map((day) => this.normalizeReportDay(day))
     };
   }
@@ -410,9 +453,9 @@ export class SmokeMonitoringApiService {
     return {
       totalReadings,
       totalIncidents: report.totalIncidents === undefined ? warningCount + alarmCount : this.toNumber(report.totalIncidents),
-      averageValue: this.toNumber(report.averageValue),
-      maxValue: this.toNumber(report.maxValue),
-      alarmTimeSeconds: this.toNumber(report.alarmTimeSeconds),
+      averageValue: this.toNumber(report.averageValue ?? report.avgSmokeValue),
+      maxValue: this.toNumber(report.maxValue ?? report.maxSmokeValue),
+      alarmTimeSeconds: this.toNumber(report.alarmTimeSeconds ?? report.totalAlarmSeconds),
       riskLevel: report.riskLevel ? this.normalizeRiskLevel(report.riskLevel) : this.deriveRiskLevel(alarmCount, warningCount, totalReadings)
     };
   }
@@ -425,10 +468,10 @@ export class SmokeMonitoringApiService {
     return {
       totalReadings,
       totalIncidents: alarmCount + warningCount,
-      averageValue: this.toNumber(summary?.averageValue),
-      maxValue: this.toNumber(summary?.maxValue),
-      alarmTimeSeconds: 0,
-      riskLevel: this.deriveRiskLevel(alarmCount, warningCount, totalReadings)
+      averageValue: this.toNumber(summary?.averageValue ?? summary?.avgSmokeValue),
+      maxValue: this.toNumber(summary?.maxValue ?? summary?.maxSmokeValue),
+      alarmTimeSeconds: this.toNumber(summary?.alarmTimeSeconds ?? summary?.totalAlarmSeconds),
+      riskLevel: summary?.riskLevel ? this.normalizeRiskLevel(summary.riskLevel) : this.deriveRiskLevel(alarmCount, warningCount, totalReadings)
     };
   }
 
@@ -472,7 +515,7 @@ export class SmokeMonitoringApiService {
       averageValue: 0,
       maxValue: 0,
       alarmTimeSeconds: 0,
-      riskLevel: 'low'
+      riskLevel: 'normal'
     };
   }
 
@@ -503,23 +546,38 @@ export class SmokeMonitoringApiService {
   }
 
   private normalizeRiskLevel(riskLevel: string): RiskLevel {
-    if (riskLevel === 'high' || riskLevel === 'medium') {
-      return riskLevel;
+    const normalized = String(riskLevel || '').toLowerCase();
+
+    if (normalized === 'high' || normalized === 'alarm' || normalized === 'alarma') {
+      return 'alarm';
     }
 
-    return 'low';
+    if (normalized === 'medium' || normalized === 'warning' || normalized === 'advertencia') {
+      return 'warning';
+    }
+
+    return 'normal';
   }
 
   private deriveRiskLevel(alarmCount: number, warningCount: number, totalReadings: number): RiskLevel {
     if (alarmCount > 0) {
-      return 'high';
+      return 'alarm';
     }
 
     if (warningCount > 0 || totalReadings > 0) {
-      return warningCount / Math.max(totalReadings, 1) >= 0.25 ? 'medium' : 'low';
+      return warningCount / Math.max(totalReadings, 1) >= 0.25 ? 'warning' : 'normal';
     }
 
-    return 'low';
+    return 'normal';
+  }
+
+  private getReportSummary<T extends object>(report: T | undefined): T & Partial<LegacyReportSummary> {
+    const rawReport = (report || {}) as T & {
+      summary?: Partial<LegacyReportSummary>;
+      report?: Partial<LegacyReportSummary>;
+      data?: Partial<LegacyReportSummary>;
+    };
+    return (rawReport.summary || rawReport.report || rawReport.data || rawReport) as T & Partial<LegacyReportSummary>;
   }
 
   private toNumber(value: unknown): number {

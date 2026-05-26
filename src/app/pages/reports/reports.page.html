@@ -54,12 +54,6 @@
       <app-loading-state message="Generando reporte..."></app-loading-state>
     } @else if (errorMessage) {
       <app-error-state [message]="errorMessage" (retry)="query()"></app-error-state>
-    } @else if (emptyReport()) {
-      <app-empty-state
-        icon="document-text-outline"
-        title="No hay registros para este periodo"
-        message="Prueba con otra fecha o espera nuevas lecturas del dispositivo."
-      ></app-empty-state>
     } @else if (report) {
       <section class="panel summary-card">
         <div class="summary-head">
@@ -91,6 +85,14 @@
           </div>
         </div>
       </section>
+
+      @if (emptyReport()) {
+        <app-empty-state
+          icon="document-text-outline"
+          title="No hay lecturas registradas para este día"
+          message="El backend respondió correctamente, pero todos los indicadores están en cero para el periodo seleccionado."
+        ></app-empty-state>
+      }
 
       @if (days.length > 0) {
         <h2 class="section-title">Detalle por día</h2>

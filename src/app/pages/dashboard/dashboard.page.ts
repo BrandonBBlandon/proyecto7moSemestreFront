@@ -1,6 +1,6 @@
 import { Component, OnDestroy } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { forkJoin, Subscription } from 'rxjs';
+import { finalize, forkJoin, Subscription } from 'rxjs';
 import {
   IonButton,
   IonButtons,
@@ -78,17 +78,18 @@ export class DashboardPage implements OnDestroy {
     forkJoin({
       current: this.api.getCurrentStatus(),
       latest: this.api.getLatestReadings(10)
-    }).subscribe({
+    }).pipe(
+      finalize(() => {
+        this.loading = false;
+        event?.target.complete();
+      })
+    ).subscribe({
       next: ({ current, latest }) => {
         this.current = current;
         this.readings = latest.items;
-        this.loading = false;
-        event?.target.complete();
       },
       error: (error: Error) => {
-        this.loading = false;
         this.errorMessage = error.message || 'No se pudo actualizar el dashboard.';
-        event?.target.complete();
       }
     });
   }

@@ -62,12 +62,27 @@ ion-button {
   color: #147b5d;
 }
 
+.risk-normal {
+  background: rgba(33, 166, 122, 0.13);
+  color: #147b5d;
+}
+
 .risk-medium {
   background: rgba(240, 166, 59, 0.18);
   color: #9a651c;
 }
 
+.risk-warning {
+  background: rgba(240, 166, 59, 0.18);
+  color: #9a651c;
+}
+
 .risk-high {
+  background: rgba(227, 75, 75, 0.16);
+  color: #a93131;
+}
+
+.risk-alarm {
   background: rgba(227, 75, 75, 0.16);
   color: #a93131;
 }
